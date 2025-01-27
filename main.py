@@ -29,23 +29,72 @@ def browse_files():
                                                         "*.*")))  
     
     # Otwieranie obrazu
+    path = "thin2.png"
     file_extension = pathlib.Path(path).suffix
 
     if (file_extension in ['.jpg', '.tif', '.bmp','.png']):
         image = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
 
     image_preprocessed = preprocess(image)
-    browser_display(image_preprocessed)
+    image_cn = crossing_number(image_preprocessed)
+
+    minutiae_image = mark_minutiae(image_preprocessed, image_cn)
+    browser_display(minutiae_image)
 
 
 def preprocess(image):
     threshold, image_otsu = cv2.threshold(image, 0, 255, cv2.THRESH_OTSU)  # Binaryzacja Otsu
-    median = cv2.medianBlur(image_otsu, 5) # Filtr medianowy
-    return median
+    #median = cv2.medianBlur(image_otsu, 5) # Filtr medianowy
+    #return median
+    return image_otsu
 
-def browser_display(image):     # Otwiera okno w przeglądarce z możliwością oglądania, zoomowania zdjęcia, sprawdzania wartości pikseli itp.
+def browser_display(image):  # Otwiera okno w przeglądarce z możliwością oglądania, zoomowania zdjęcia, sprawdzania wartości pikseli itp.
     fig = px.imshow(cv2.cvtColor(image, cv2.IMREAD_GRAYSCALE))
     fig.show()
+
+def crossing_number(image):
+    y = image.shape[0]
+    x = image.shape[1]
+    new_image = np.zeros((y,x), dtype = 'uint8')
+    image = image / 255
+
+    for i in range(1, y - 1): # Przejscie po obrazie
+        for j in range(1, x - 1):
+            # Tablica z wartościami p1 do p9
+            p = [ image[i + 1][j], image[i + 1][j + 1], image[i][j + 1], image[i - 1][j + 1], 
+                 image[i - 1][j], image[i - 1][j - 1], image[i][j - 1], image[i + 1][j-1], image[i + 1][j] ]
+
+            sum = 0 
+            
+            # Obliczanie sumy różnic |pi - pi+1|
+            for k in range(8):
+                sum += abs(p[k] - p[k + 1])
+            sum = sum / 2
+            # Nadanie pikselowi wartości równej wynikowi algorytmu dla niego
+            new_image[i][j] = int(sum)
+            
+    return new_image
+
+def mark_minutiae(image_og, image_cn):
+    y = image_cn.shape[0]
+    x = image_cn.shape[1]
+    image = cv2.cvtColor(image_og,cv2.COLOR_GRAY2RGB)
+
+    for i in range(1, y - 1):  # Przejscie po obrazie
+        for j in range(1, x - 1):
+
+            if image_og[i][j] == 0:
+                match image_cn[i][j]:
+                    case 3: # Wykryto rozwidlenie - rysuje kwadracik 3 x 3 o kolorze zielonym
+                        for k in (0,1):
+                            for l in (0,1):
+                                image[i + k][j + l] = [0,255,0]
+                    case 1: # Wykryto zakonczenie krawedzi - Rysuje kwadracik 3 x 3 o kolorze czerwonym
+                        for k in (0,1):
+                            for l in (0,1):
+                                image[i + k][j + l] = [255,0,0]
+            
+    return image
 
 app = customtkinter.CTk()
 app.geometry("200x200")
